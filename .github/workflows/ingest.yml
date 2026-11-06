@@ -51,9 +51,11 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: python -m ingest upload out
 
-      # Until the workspace is connected, keep the files so no history is lost.
+      # Keep the files when they could not reach the volume (before the workspace
+      # is connected, or when the upload fails) so no history is lost. They can be
+      # uploaded later with `python -m ingest upload`.
       - name: Keep the files as an artifact
-        if: vars.DATABRICKS_HOST == ''
+        if: failure() || vars.DATABRICKS_HOST == ''
         uses: actions/upload-artifact@v4
         with:
           name: traffy-${{ github.run_id }}
