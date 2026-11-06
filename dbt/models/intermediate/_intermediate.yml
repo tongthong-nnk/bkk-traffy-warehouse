@@ -1,0 +1,127 @@
+version: 2
+
+models:
+  - name: int_ticket_versions
+    description: >
+      One row per version of a ticket: what it looked like after each activity we
+      saw. Incremental: each build reads only snapshots loaded since the last one.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [ticket_id, last_activity_at]
+    columns:
+      - name: ticket_id
+        data_tests: [not_null]
+      - name: last_activity_at
+        description: The activity that produced this version.
+        data_tests: [not_null]
+      - name: state_code
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('ticket_states')
+                field: state_code
+      - name: first_seen_at
+        description: The first pull that returned this version.
+      - name: last_seen_at
+        description: The last pull that returned this version.
+      - name: loaded_at
+        description: Latest load that touched this version; the next build starts after it.
+
+  - name: int_tickets
+    description: One row per ticket with its latest version, matched to a district.
+    columns:
+      - name: ticket_id
+        data_tests: [unique, not_null]
+      - name: district_code
+        description: >
+          District whose name follows เขต in the address; -1 when the address names no
+          Bangkok district.
+      - name: first_seen_at
+        description: The first pull that returned any version of the ticket.
+      - name: version_count
+        description: Versions of the ticket we have seen.
+
+  - name: int_ticket_state_periods
+    description: >
+      The stretches of time a ticket spent in each state, built from consecutive
+      versions. Period 0 (state `unknown`) covers the time between the report and
+      the first version we saw.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [ticket_id, period_number]
+    columns:
+      - name: period_number
+        description: 0 for the unseen start, then 1, 2, … in order.
+      - name: state_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('ticket_states')
+                field: state_code
+      - name: started_at
+        description: Time of the first version in the period, or the report for period 0.
+      - name: ended_at
+        description: Start of the next period. Empty for the current one.
+      - name: is_current
+        description: True for the ticket's latest period.
+      - name: is_start_observed
+        description: >
+          False only for period 1 of a ticket that has a period 0: the ticket may have
+          been in that state for a while before we first saw it.
+
+unit_tests:
+  - name: test_periods_collapse_repeats_and_mark_the_unseen_start
+    model: int_ticket_state_periods
+    given:
+      - input: ref('int_ticket_versions')
+        rows:
+          # seen from the report: waiting, a note while waiting, in progress, finished
+          - {ticket_id: A, reported_at: "2026-11-06 01:00:00", last_activity_at: "2026-11-06 01:00:00", state_code: waiting}
+          - {ticket_id: A, reported_at: "2026-11-06 01:00:00", last_activity_at: "2026-11-06 02:00:00", state_code: waiting}
+          - {ticket_id: A, reported_at: "2026-11-06 01:00:00", last_activity_at: "2026-11-06 03:00:00", state_code: in_progress}
+          - {ticket_id: A, reported_at: "2026-11-06 01:00:00", last_activity_at: "2026-11-06 05:00:00", state_code: finished}
+          # reported long before collection; the backfill saw it once, finished
+          - {ticket_id: B, reported_at: "2024-03-01 05:00:00", last_activity_at: "2024-03-05 09:00:00", state_code: finished}
+          # finished, reopened, finished again
+          - {ticket_id: C, reported_at: "2026-11-06 01:00:00", last_activity_at: "2026-11-06 01:00:00", state_code: waiting}
+          - {ticket_id: C, reported_at: "2026-11-06 01:00:00", last_activity_at: "2026-11-06 02:00:00", state_code: finished}
+          - {ticket_id: C, reported_at: "2026-11-06 01:00:00", last_activity_at: "2026-11-06 04:00:00", state_code: in_progress}
+          - {ticket_id: C, reported_at: "2026-11-06 01:00:00", last_activity_at: "2026-11-06 06:00:00", state_code: finished}
+    expect:
+      rows:
+        - {ticket_id: A, period_number: 1, state_code: waiting, started_at: "2026-11-06 01:00:00", ended_at: "2026-11-06 03:00:00", is_current: false, is_start_observed: true}
+        - {ticket_id: A, period_number: 2, state_code: in_progress, started_at: "2026-11-06 03:00:00", ended_at: "2026-11-06 05:00:00", is_current: false, is_start_observed: true}
+        - {ticket_id: A, period_number: 3, state_code: finished, started_at: "2026-11-06 05:00:00", ended_at: null, is_current: true, is_start_observed: true}
+        - {ticket_id: B, period_number: 0, state_code: unknown, started_at: "2024-03-01 05:00:00", ended_at: "2024-03-05 09:00:00", is_current: false, is_start_observed: true}
+        - {ticket_id: B, period_number: 1, state_code: finished, started_at: "2024-03-05 09:00:00", ended_at: null, is_current: true, is_start_observed: false}
+        - {ticket_id: C, period_number: 1, state_code: waiting, started_at: "2026-11-06 01:00:00", ended_at: "2026-11-06 02:00:00", is_current: false, is_start_observed: true}
+        - {ticket_id: C, period_number: 2, state_code: finished, started_at: "2026-11-06 02:00:00", ended_at: "2026-11-06 04:00:00", is_current: false, is_start_observed: true}
+        - {ticket_id: C, period_number: 3, state_code: in_progress, started_at: "2026-11-06 04:00:00", ended_at: "2026-11-06 06:00:00", is_current: false, is_start_observed: true}
+        - {ticket_id: C, period_number: 4, state_code: finished, started_at: "2026-11-06 06:00:00", ended_at: null, is_current: true, is_start_observed: true}
+
+  - name: test_versions_merge_keeps_first_sighting_and_latest_values
+    model: int_ticket_versions
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {ticket_id: A, last_activity_at: "2026-11-06 01:00:00", state_code: waiting, first_seen_at: "2026-11-06 01:17:00", last_seen_at: "2026-11-06 02:17:00", loaded_at: "2026-11-06 02:30:00"}
+          - {ticket_id: A, last_activity_at: "2026-11-06 03:00:00", state_code: finished, first_seen_at: "2026-11-06 03:17:00", last_seen_at: "2026-11-06 03:17:00", loaded_at: "2026-11-06 03:30:00"}
+      - input: ref('stg_traffy__ticket_snapshots')
+        rows:
+          # loaded before the last build: already merged, so ignored
+          - {ticket_id: A, last_activity_at: "2026-11-06 01:00:00", state_code: waiting, fetched_at: "2026-11-06 02:17:00", loaded_at: "2026-11-06 02:30:00"}
+          # the same version twice more, now with a rating
+          - {ticket_id: A, last_activity_at: "2026-11-06 03:00:00", state_code: finished, star: 5, fetched_at: "2026-11-06 05:17:00", loaded_at: "2026-11-07 02:30:00"}
+          - {ticket_id: A, last_activity_at: "2026-11-06 03:00:00", state_code: finished, fetched_at: "2026-11-06 04:17:00", loaded_at: "2026-11-07 02:30:00"}
+          # a new ticket
+          - {ticket_id: D, last_activity_at: "2026-11-06 04:30:00", state_code: waiting, fetched_at: "2026-11-06 05:17:00", loaded_at: "2026-11-07 02:30:00"}
+    expect:
+      rows:
+        - {ticket_id: A, last_activity_at: "2026-11-06 03:00:00", state_code: finished, star: 5, first_seen_at: "2026-11-06 03:17:00", last_seen_at: "2026-11-06 05:17:00", loaded_at: "2026-11-07 02:30:00"}
+        - {ticket_id: D, last_activity_at: "2026-11-06 04:30:00", state_code: waiting, star: null, first_seen_at: "2026-11-06 05:17:00", last_seen_at: "2026-11-06 05:17:00", loaded_at: "2026-11-07 02:30:00"}

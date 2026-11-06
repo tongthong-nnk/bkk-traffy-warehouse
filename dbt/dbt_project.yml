@@ -1,0 +1,41 @@
+name: traffy
+version: "1.0.0"
+profile: traffy
+
+flags:
+  send_anonymous_usage_stats: false
+
+model-paths: [models]
+seed-paths: [seeds]
+macro-paths: [macros]
+test-paths: [tests]
+
+vars:
+  landing_volume: /Volumes/workspace/traffy/landing
+  # Last day fct_backlog_daily covers, as YYYY-MM-DD. Empty means yesterday in Bangkok.
+  backlog_end_date: ""
+
+models:
+  traffy:
+    +file_format: delta
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: staging
+      +materialized: table
+    marts:
+      +schema: marts
+      +materialized: table
+
+seeds:
+  traffy:
+    +schema: staging
+    +file_format: delta
+
+data_tests:
+  traffy:
+    staging:
+      # staging views sit on raw tables that grow by about 190,000 rows a day,
+      # so their tests check only what arrived in the last two days
+      +where: "loaded_at >= current_timestamp() - interval 2 days"

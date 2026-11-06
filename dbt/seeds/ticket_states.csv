@@ -1,0 +1,6 @@
+state_code,name_th,name_en,is_open,sort_order
+unknown,ไม่ทราบ,Not seen yet,true,0
+waiting,รอรับเรื่อง,Waiting,true,1
+forwarded,ส่งต่อ(ใหม่),Forwarded,true,2
+in_progress,กำลังดำเนินการ,In progress,true,3
+finished,เสร็จสิ้น,Finished,false,4

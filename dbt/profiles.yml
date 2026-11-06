@@ -1,0 +1,15 @@
+traffy:
+  target: databricks
+  outputs:
+    databricks:
+      type: databricks
+      # Server hostname and HTTP path from the SQL warehouse's Connection details
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      catalog: workspace
+      schema: traffy
+      threads: 4
+      session_properties:
+        # macros/bangkok_date.sql relies on timestamps being read in UTC
+        TIMEZONE: UTC

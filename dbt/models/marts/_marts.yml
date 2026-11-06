@@ -1,0 +1,227 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: One row per Bangkok calendar day, from the earliest report to today.
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]
+      - name: day_of_week
+        description: 1 is Monday, 7 is Sunday.
+
+  - name: dim_district
+    description: Bangkok's 50 districts, plus -1 for an address that names none of them.
+    columns:
+      - name: district_code
+        description: The Department of Provincial Administration code, 1001 to 1050.
+        data_tests: [unique, not_null]
+
+  - name: dim_state
+    description: >
+      Ticket states, plus `unknown` for the time before we first saw a ticket.
+      `is_open` decides what counts as backlog.
+    columns:
+      - name: state_code
+        data_tests: [unique, not_null]
+
+  - name: dim_problem_type
+    description: Problem categories, with English names where the `problem_types` seed has one.
+    columns:
+      - name: problem_type
+        description: The category as Traffy writes it; ไม่ระบุ for a ticket with none.
+        data_tests: [unique, not_null]
+
+  - name: bridge_ticket_problem_type
+    description: Links each ticket to its categories (a ticket can have several).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [ticket_id, problem_type]
+    columns:
+      - name: ticket_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('fct_ticket')
+                field: ticket_id
+      - name: problem_type
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_problem_type')
+                field: problem_type
+      - name: weight
+        description: 1 divided by the ticket's number of categories.
+
+  - name: fct_ticket
+    description: >
+      One row per ticket, updated as it moves along (an accumulating snapshot).
+      For a ticket we did not see from its report, `closed_at` is the last activity
+      before it closed, which can be later than the real close.
+    columns:
+      - name: ticket_id
+        data_tests: [unique, not_null]
+      - name: reported_date
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: district_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_district')
+                field: district_code
+      - name: state_code
+        description: Current state.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_state')
+                field: state_code
+      - name: observed_from_start
+        description: True when the first version we have is the ticket as reported.
+      - name: first_response_at
+        description: The first change of state after the report. Only for tickets observed from the start.
+      - name: hours_to_first_response
+      - name: closed_at
+        description: When the ticket entered its current closed state. Empty while open.
+      - name: closed_date
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: hours_to_close
+      - name: is_close_observed
+        description: True when we saw the ticket change into its closed state, so `closed_at` is accurate to one pull.
+      - name: reopen_count
+      - name: star
+      - name: version_count
+      - name: state_change_count
+        description: Changes of state we saw happen.
+
+  - name: fct_state_change
+    description: >
+      One row per change of state seen between two pulls (a transaction fact).
+      With hourly pulls, a ticket that changes twice within the hour shows one change.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [ticket_id, changed_at]
+    columns:
+      - name: changed_date
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: district_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_district')
+                field: district_code
+      - name: from_state_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_state')
+                field: state_code
+      - name: to_state_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_state')
+                field: state_code
+      - name: hours_in_from_state
+        description: Time spent in the state left behind, when we saw it begin.
+
+  - name: fct_backlog_daily
+    description: Open tickets at the end of each Bangkok day, by district and state (a periodic snapshot).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [snapshot_date, district_code, state_code]
+    columns:
+      - name: snapshot_date
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: district_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_district')
+                field: district_code
+      - name: state_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_state')
+                field: state_code
+      - name: open_tickets
+      - name: open_30_days_or_more
+        description: Open tickets reported 30 or more days before the snapshot date.
+
+unit_tests:
+  - name: test_backlog_counts_each_day_a_ticket_is_open_at_midnight
+    model: fct_backlog_daily
+    overrides:
+      vars:
+        backlog_end_date: "2026-11-07"
+    given:
+      - input: ref('int_ticket_state_periods')
+        rows:
+          # 17:00 on 5 Nov to 03:00 on 7 Nov, Bangkok time: open at the end of 5 and 6 Nov
+          - {ticket_id: A, period_number: 1, state_code: waiting, started_at: "2026-11-05 10:00:00", ended_at: "2026-11-06 20:00:00"}
+          - {ticket_id: A, period_number: 2, state_code: finished, started_at: "2026-11-06 20:00:00", ended_at: null}
+          # 01:00 on 7 Nov Bangkok time, still open: counts on the last day only
+          - {ticket_id: B, period_number: 0, state_code: unknown, started_at: "2026-11-06 18:00:00", ended_at: null}
+          # opened and closed on the same day: never counted
+          - {ticket_id: C, period_number: 1, state_code: waiting, started_at: "2026-11-06 01:00:00", ended_at: "2026-11-06 05:00:00"}
+          - {ticket_id: C, period_number: 2, state_code: finished, started_at: "2026-11-06 05:00:00", ended_at: null}
+      - input: ref('int_tickets')
+        rows:
+          - {ticket_id: A, reported_at: "2026-10-01 03:00:00", district_code: 1036}
+          - {ticket_id: B, reported_at: "2026-11-06 18:00:00", district_code: -1}
+          - {ticket_id: C, reported_at: "2026-11-06 01:00:00", district_code: 1036}
+      - input: ref('ticket_states')
+        rows:
+          - {state_code: unknown, is_open: true}
+          - {state_code: waiting, is_open: true}
+          - {state_code: finished, is_open: false}
+    expect:
+      rows:
+        - {snapshot_date: "2026-11-05", district_code: 1036, state_code: waiting, open_tickets: 1, open_30_days_or_more: 1}
+        - {snapshot_date: "2026-11-06", district_code: 1036, state_code: waiting, open_tickets: 1, open_30_days_or_more: 1}
+        - {snapshot_date: "2026-11-07", district_code: -1, state_code: unknown, open_tickets: 1, open_30_days_or_more: 0}
+
+  - name: test_ticket_milestones_only_where_we_saw_them
+    model: fct_ticket
+    given:
+      - input: ref('int_tickets')
+        rows:
+          - {ticket_id: A, reported_at: "2026-11-06 01:00:00", state_code: finished, district_code: 1036, problem_types: "array()"}
+          - {ticket_id: B, reported_at: "2024-03-01 05:00:00", state_code: finished, district_code: 1050, problem_types: "array()"}
+          - {ticket_id: E, reported_at: "2026-11-06 01:00:00", state_code: waiting, district_code: 1036, problem_types: "array()"}
+      - input: ref('int_ticket_state_periods')
+        rows:
+          - {ticket_id: A, period_number: 1, state_code: waiting, started_at: "2026-11-06 01:00:00", ended_at: "2026-11-06 03:00:00", is_start_observed: true}
+          - {ticket_id: A, period_number: 2, state_code: finished, started_at: "2026-11-06 03:00:00", ended_at: null, is_start_observed: true}
+          - {ticket_id: B, period_number: 0, state_code: unknown, started_at: "2024-03-01 05:00:00", ended_at: "2024-03-05 09:00:00", is_start_observed: true}
+          - {ticket_id: B, period_number: 1, state_code: finished, started_at: "2024-03-05 09:00:00", ended_at: null, is_start_observed: false}
+          - {ticket_id: E, period_number: 1, state_code: waiting, started_at: "2026-11-06 01:00:00", ended_at: null, is_start_observed: true}
+      - input: ref('ticket_states')
+        rows:
+          - {state_code: unknown, is_open: true}
+          - {state_code: waiting, is_open: true}
+          - {state_code: finished, is_open: false}
+    expect:
+      rows:
+        - {ticket_id: A, is_open: false, observed_from_start: true, first_response_at: "2026-11-06 03:00:00", hours_to_first_response: 2, closed_at: "2026-11-06 03:00:00", hours_to_close: 2, is_close_observed: true, state_change_count: 1}
+        - {ticket_id: B, is_open: false, observed_from_start: false, first_response_at: null, hours_to_first_response: null, closed_at: "2024-03-05 09:00:00", hours_to_close: 100, is_close_observed: false, state_change_count: 0}
+        - {ticket_id: E, is_open: true, observed_from_start: true, first_response_at: null, hours_to_first_response: null, closed_at: null, hours_to_close: null, is_close_observed: null, state_change_count: 0}

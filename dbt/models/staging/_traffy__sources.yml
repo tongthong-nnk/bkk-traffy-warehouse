@@ -1,0 +1,34 @@
+version: 2
+
+sources:
+  - name: traffy
+    description: >
+      Files the ingest job writes to the landing volume, copied into Delta tables
+      by the `load_landing` macro. Lines are stored as they arrived; parsing
+      happens in staging, so a change in the API never breaks the load.
+    schema: traffy
+    tables:
+      - name: raw_tickets
+        description: One row per line of a page file, which is one ticket as one pull saw it.
+        columns:
+          - name: line
+            description: The JSON line the ingest wrote (run_id, page, fetched_at, ticket).
+          - name: file_path
+            description: Page file the line came from.
+          - name: loaded_at
+            description: When COPY INTO loaded the file. Incremental models start from here.
+
+      - name: raw_runs
+        description: One row per run manifest. A run writes its manifest after its last page.
+        config:
+          loaded_at_field: "cast(get_json_object(manifest, '$.finished_at') as timestamp)"
+          freshness:
+            warn_after: {count: 3, period: hour}
+            error_after: {count: 12, period: hour}
+        columns:
+          - name: manifest
+            description: The manifest JSON.
+          - name: file_path
+            description: Manifest file the row came from.
+          - name: loaded_at
+            description: When COPY INTO loaded the file.

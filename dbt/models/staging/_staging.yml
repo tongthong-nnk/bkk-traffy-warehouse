@@ -1,0 +1,72 @@
+version: 2
+
+models:
+  - name: stg_traffy__ticket_snapshots
+    description: >
+      One row per ticket per pull: the ticket as the API returned it at `fetched_at`.
+      Each hourly pull re-reads two days of activity, so the same ticket appears many
+      times with nothing changed. `int_ticket_versions` removes the repeats.
+    columns:
+      - name: run_id
+        description: The pull this snapshot came from (`raw_runs`).
+        data_tests: [not_null]
+      - name: fetched_at
+        description: When the page holding this ticket was fetched.
+        data_tests: [not_null]
+      - name: ticket_id
+        description: Traffy's ticket id, either `2026-RW46EL` or the older `KFHJHR` form.
+        data_tests: [not_null]
+      - name: state_th
+        description: The state as the API spells it.
+      - name: state_code
+        description: >
+          `state_th` mapped to the codes in the `ticket_states` seed. Empty means the
+          API returned a state the mapping does not know yet.
+        data_tests: [not_null]
+      - name: reported_at
+        description: When the ticket was reported (the API's `timestamp`).
+        data_tests: [not_null]
+      - name: last_activity_at
+        description: Time of the latest activity on the ticket, as of this pull.
+        data_tests: [not_null]
+      - name: problem_types
+        description: Categories the reporter picked, if any.
+      - name: organization
+        description: กรุงเทพมหานคร on every ticket seen so far.
+      - name: address
+        description: Reverse-geocoded address of the reported location.
+      - name: district_th
+        description: The district name taken from the address, before it is matched to a district.
+      - name: longitude
+        description: WGS84 longitude of the reported location.
+      - name: latitude
+        description: WGS84 latitude of the reported location.
+      - name: star
+        description: The reporter's rating from 1 to 5, if they gave one.
+      - name: reopen_count
+        description: Times the ticket was reopened.
+      - name: loaded_at
+        description: When the line was loaded into `raw_tickets`.
+
+  - name: stg_traffy__runs
+    description: One row per ingest run, from the manifest it writes after its last page.
+    columns:
+      - name: run_id
+        description: UTC start time of the run, as `20261106T031700Z`.
+        data_tests: [unique, not_null]
+      - name: window_start
+        description: First Bangkok date of `last_activity` the run asked for.
+      - name: window_end
+        description: Last Bangkok date of `last_activity` the run asked for, inclusive.
+      - name: started_at
+        description: When the run started.
+      - name: finished_at
+        description: When the run wrote its last page.
+      - name: pages
+        description: Pages fetched.
+      - name: tickets
+        description: Tickets fetched, repeats at page boundaries included.
+      - name: api_total
+        description: The `total` the API reported on the first page.
+      - name: loaded_at
+        description: When the manifest was loaded into `raw_runs`.
