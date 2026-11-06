@@ -1,0 +1,61 @@
+name: ingest
+
+on:
+  schedule:
+    # Minute 17, away from the top of the hour, when GitHub delays or drops
+    # the most scheduled runs. Each run re-reads yesterday and today, so a
+    # missed hour costs no data.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      start:
+        description: First Bangkok date, YYYY-MM-DD (empty for yesterday)
+        required: false
+      end:
+        description: Last Bangkok date, YYYY-MM-DD (empty for today)
+        required: false
+
+concurrency:
+  # Hourly runs queue behind each other; a backfill runs beside them.
+  group: ingest-${{ github.event_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - run: pip install .
+
+      - name: Pull tickets
+        env:
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
+        run: python -m ingest pull --out out ${START:+--start "$START"} ${END:+--end "$END"}
+
+      - name: Upload to the landing volume
+        if: vars.DATABRICKS_HOST != ''
+        env:
+          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: python -m ingest upload out
+
+      # Until the workspace is connected, keep the files so no history is lost.
+      - name: Keep the files as an artifact
+        if: vars.DATABRICKS_HOST == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: traffy-${{ github.run_id }}
+          path: out
+          retention-days: 90
