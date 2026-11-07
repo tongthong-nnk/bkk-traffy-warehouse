@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bangkok's Traffy Fondue tickets</title>
+  <meta name="description" content="How many problems people in Bangkok report through Traffy Fondue, how many are still open, and how fast they are finished.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Bangkok's Traffy Fondue tickets</h1>
+      <p class="lede">
+        People in Bangkok report broken roads, flooding, rubbish and other problems through
+        Traffy Fondue. These charts show how many reports come in, how many are still open,
+        and how fast they are finished.
+      </p>
+      <p class="meta" id="as-of">Loading…</p>
+    </header>
+
+    <section class="tiles" id="tiles" aria-label="Headline numbers"></section>
+
+    <section class="card">
+      <h2>Open tickets at the end of each day</h2>
+      <p class="note">
+        Before hourly collection began, the backlog is rebuilt from each ticket's report time and
+        its latest activity, so a ticket finished back then counts as open until that activity.
+      </p>
+      <div class="chart" id="backlog"></div>
+    </section>
+
+    <div class="pair">
+      <section class="card">
+        <h2>Tickets reported each month</h2>
+        <div class="chart" id="monthly-reported"></div>
+      </section>
+      <section class="card">
+        <h2>Finished within 7 days of the report</h2>
+        <p class="note">Share of each month's tickets. Only tickets reported at least 7 days ago count.</p>
+        <div class="chart" id="monthly-7-days"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Districts</h2>
+      <p class="note">All tickets since June 2022, and the backlog now. Select a column to sort by it.</p>
+      <div id="districts"></div>
+    </section>
+
+    <div class="pair">
+      <section class="card">
+        <h2>Tickets by category</h2>
+        <p class="note">A ticket in two categories counts as half in each.</p>
+        <div id="categories"></div>
+      </section>
+      <section class="card">
+        <h2>Tickets that name a category</h2>
+        <p class="note">Share of each month's tickets.</p>
+        <div class="chart" id="monthly-category"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Problems in the data</h2>
+      <ul class="notes" id="data-quality"></ul>
+    </section>
+
+    <footer>
+      <p>
+        Source: the Traffy Fondue public API for Bangkok, pulled every hour. Built with dbt on
+        Databricks Free Edition: <a href="https://github.com/tongthong-nnk/bkk-traffy-warehouse">code</a>
+        and <a href="docs/">model documentation</a>.
+      </p>
+    </footer>
+  </main>
+  <div class="tooltip" id="tooltip" role="status" hidden></div>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

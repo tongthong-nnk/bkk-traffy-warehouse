@@ -8,6 +8,8 @@ models:
         description: The first pull. History before it comes from the backfill and has no state changes.
       - name: tickets_observed_from_start
         description: Tickets first seen as reported, so every change of state is known.
+      - name: median_days_to_finish_past_year
+        description: Over finished tickets reported in the last 365 days.
 
   - name: rpt_monthly
     description: Tickets by the Bangkok month they were reported in.
