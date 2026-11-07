@@ -1,8 +1,9 @@
 name: backfill
 
 # Loads the history the API still holds, one ingest run per year of last
-# activity, oldest first: the API has nothing before June 2022. Run it once
-# after connecting the workspace; the hourly ingest keeps up from there.
+# activity, oldest first: the oldest activity it returns is from May 2022.
+# Run it once after connecting the workspace; the hourly ingest keeps up from
+# there.
 on:
   workflow_dispatch:
 
