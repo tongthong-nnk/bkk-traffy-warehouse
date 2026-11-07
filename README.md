@@ -18,7 +18,7 @@ links are dropped before anything is written, because nothing downstream needs t
 
 `python -m ingest upload out` copies the files into the Unity Catalog volume
 `workspace.traffy.landing` through the Databricks Files API, which needs no cluster or SQL
-warehouse. Manifests go last, so a run counts as landed only once its manifest is there.
+warehouse. Manifests go last, so a manifest in the volume means every page of its run is there too.
 
 The `ingest` workflow runs both every hour at minute 17. A manual run with `start` and `end`
 dates loads history, one year at a time.

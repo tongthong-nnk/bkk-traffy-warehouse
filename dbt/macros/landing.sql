@@ -6,8 +6,8 @@
 
     before `dbt build`. Both are safe to repeat: COPY INTO remembers which files it
     has loaded, so a second load only picks up files that arrived after the first.
-    The loads read from the volume root, which exists as soon as the volume does, so
-    a build before the first upload loads nothing instead of failing.
+    COPY INTO fails when its path matches no file, so a folder the ingest has not
+    written yet is skipped, and a build before the first upload loads nothing.
 #}
 
 {% macro create_landing() %}
@@ -29,6 +29,10 @@
 
 {% macro load_landing() %}
     {% set volume = var('landing_volume') %}
+    {% set folders = [] %}
+    {% for row in run_query("list '" ~ volume ~ "'").rows %}
+        {% do folders.append(row['name'].rstrip('/')) %}
+    {% endfor %}
 
     {% set copy_tickets %}
         copy into {{ source('traffy', 'raw_tickets') }}
@@ -37,12 +41,13 @@
                 value as line,
                 _metadata.file_path as file_path,
                 current_timestamp() as loaded_at
-            from '{{ volume }}'
+            from '{{ volume }}/tickets'
         )
         fileformat = text
-        pattern = 'tickets/run=*/page-*.jsonl.gz'
+        pattern = 'run=*/page-*.jsonl.gz'
     {% endset %}
 
+    {# A manifest is one JSON document, so each file is read whole. #}
     {% set copy_runs %}
         copy into {{ source('traffy', 'raw_runs') }}
         from (
@@ -50,21 +55,23 @@
                 value as manifest,
                 _metadata.file_path as file_path,
                 current_timestamp() as loaded_at
-            from '{{ volume }}'
+            from '{{ volume }}/runs'
         )
         fileformat = text
-        pattern = 'runs/*.json'
+        pattern = '*.json'
         format_options ('wholeText' = 'true')
     {% endset %}
 
-    {% for table, statement in [('raw_tickets', copy_tickets), ('raw_runs', copy_runs)] %}
-        {% set result = run_query(statement) %}
-        {% if result.rows %}
+    {% for table, folder, statement in [('raw_tickets', 'tickets', copy_tickets), ('raw_runs', 'runs', copy_runs)] %}
+        {% if folder in folders %}
+            {% set result = run_query(statement) %}
             {% set counts = [] %}
             {% for column in result.column_names %}
                 {% do counts.append(column ~ '=' ~ result.rows[0][column]) %}
             {% endfor %}
             {{ log(table ~ ': ' ~ counts | join(', '), info=true) }}
+        {% else %}
+            {{ log(table ~ ': nothing in ' ~ volume ~ '/' ~ folder ~ ' yet', info=true) }}
         {% endif %}
     {% endfor %}
 {% endmacro %}

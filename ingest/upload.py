@@ -31,9 +31,9 @@ def upload_dir(
 ) -> int:
     """Upload every file under out_dir to the same relative path in the volume.
 
-    Run manifests go last, so a run is only complete in the volume once its
-    manifest is there, and the build reads only runs that have one. A file that
-    is already in the volume, from an earlier attempt, is left as it is.
+    Run manifests go last, so a manifest in the volume means every page of its
+    run is there too. A file that is already in the volume, from an earlier
+    attempt, is left as it is.
     Returns the number of files uploaded.
     """
     session = session or requests.Session()
