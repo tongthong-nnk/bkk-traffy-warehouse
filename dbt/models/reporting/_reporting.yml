@@ -6,6 +6,10 @@ models:
     columns:
       - name: collection_started_at
         description: The first pull. History before it comes from the backfill and has no state changes.
+      - name: earliest_activity_date
+        description: The oldest last activity the API still returns. Tickets reported before it are only there if they had activity later.
+      - name: first_complete_month
+        description: The first month that starts on or after `earliest_activity_date`, so the first one with every ticket.
       - name: tickets_observed_from_start
         description: Tickets first seen as reported, so every change of state is known.
       - name: median_days_to_finish_past_year

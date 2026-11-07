@@ -331,17 +331,19 @@ function barList(container, rows) {
 
 // ---- sections --------------------------------------------------------------
 
+// `monthly` starts at the first complete month.
 function renderTiles(summary, monthly, districts) {
   const lastYear = monthly.slice(-12);
-  const firstReported = utcDate(summary.first_reported_at);
+  const start = utcDate(summary.first_complete_month);
   const builtAt = new Date(summary.built_at);
-  const daysCovered = (builtAt - firstReported) / 86400000;
+  const reported = sum(monthly, "reported");
+  const daysCovered = (builtAt - start) / 86400000;
   const oldOpen = districts.reduce((sum, d) => sum + d.open_30_days_or_more, 0);
   const tiles = [
     {
-      label: `Tickets since ${monthFormat.format(firstReported)}`,
-      value: count(summary.tickets),
-      sub: `about ${count(summary.tickets / daysCovered)} a day`,
+      label: `Tickets since ${monthFormat.format(start)}`,
+      value: count(reported),
+      sub: `about ${count(reported / daysCovered)} a day`,
     },
     { label: "Open now", value: count(summary.open_tickets), sub: `${count(oldOpen)} of them for 30 days or more` },
     {
@@ -368,7 +370,9 @@ function renderTiles(summary, monthly, districts) {
     );
   }
   const asOf = document.getElementById("as-of");
-  asOf.textContent = `Updated ${bangkokFormat.format(builtAt)} Bangkok time. Hourly collection began ${dayFormat.format(new Date(summary.collection_started_at))}.`;
+  asOf.textContent =
+    `Updated ${bangkokFormat.format(builtAt)} Bangkok time. History starts in ${monthFormat.format(start)}, ` +
+    `the first month the API still holds in full; hourly collection began ${dayFormat.format(new Date(summary.collection_started_at))}.`;
 }
 
 function sum(rows, key) {
@@ -499,10 +503,14 @@ async function load(name) {
 }
 
 async function main() {
-  const [summaryRows, monthly, backlog, districts, categories, quality] = await Promise.all(
+  const [summaryRows, allMonths, allDays, districts, categories, quality] = await Promise.all(
     ["rpt_summary", "rpt_monthly", "rpt_backlog_daily", "rpt_district", "rpt_problem_type", "rpt_data_quality"].map(load),
   );
   const summary = summaryRows[0];
+  // Months before this one are missing the tickets the API no longer returns.
+  const start = utcDate(summary.first_complete_month);
+  const monthly = allMonths.filter((r) => utcDate(r.month_start) >= start);
+  const backlog = allDays.filter((r) => utcDate(r.snapshot_date) >= start);
   const blue = "var(--series-1)";
   const orange = "var(--series-2)";
 
