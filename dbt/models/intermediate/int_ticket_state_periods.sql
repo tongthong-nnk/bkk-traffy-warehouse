@@ -10,8 +10,13 @@
 
 with versions as (
 
-    select ticket_id, reported_at, last_activity_at, state_code
-    from {{ ref('int_ticket_versions') }}
+    select
+        versions.ticket_id,
+        versions.reported_at,
+        versions.last_activity_at,
+        coalesce(states.state_code, 'other') as state_code
+    from {{ ref('int_ticket_versions') }} as versions
+    left join {{ ref('ticket_states') }} as states on versions.state_th = states.name_th
 
 ),
 

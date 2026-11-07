@@ -17,12 +17,18 @@ models:
         description: Traffy's ticket id, either `2026-RW46EL` or the older `KFHJHR` form.
         data_tests: [not_null]
       - name: state_th
-        description: The state as the API spells it.
-      - name: state_code
         description: >
-          `state_th` mapped to the codes in the `ticket_states` seed. Empty means the
-          API returned a state the mapping does not know yet.
-        data_tests: [not_null]
+          The state as the API spells it. The `ticket_states` seed gives each state a
+          code further down. A state the seed does not list yet is counted as `other`
+          until a row is added for it, and this test warns about it.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('ticket_states')
+                field: name_th
+              config:
+                severity: warn
       - name: reported_at
         description: When the ticket was reported (the API's `timestamp`).
         data_tests: [not_null]

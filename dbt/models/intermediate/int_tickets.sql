@@ -27,13 +27,20 @@ districts as (
 
     select district_code, name_th from {{ ref('bangkok_districts') }}
 
+),
+
+states as (
+
+    select state_code, name_th from {{ ref('ticket_states') }}
+
 )
 
 select
     latest.ticket_id,
     latest.reported_at,
     latest.last_activity_at,
-    latest.state_code,
+    coalesce(states.state_code, 'other') as state_code,
+    latest.state_th,
     coalesce(districts.district_code, -1) as district_code,
     latest.district_th,
     latest.problem_types,
@@ -46,3 +53,4 @@ select
 from latest
 inner join history on latest.ticket_id = history.ticket_id
 left join districts on latest.district_th = districts.name_th
+left join states on latest.state_th = states.name_th

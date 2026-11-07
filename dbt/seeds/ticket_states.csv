@@ -3,4 +3,7 @@ unknown,ไม่ทราบ,Not seen yet,true,0
 waiting,รอรับเรื่อง,Waiting,true,1
 forwarded,ส่งต่อ(ใหม่),Forwarded,true,2
 in_progress,กำลังดำเนินการ,In progress,true,3
-finished,เสร็จสิ้น,Finished,false,4
+following_up,ติดตามเรื่อง,Following up,true,4
+awaiting_budget,ของบประมาณ,Awaiting budget,true,5
+finished,เสร็จสิ้น,Finished,false,6
+other,อื่น ๆ,Not in this list yet,true,7

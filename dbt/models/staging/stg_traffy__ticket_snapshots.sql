@@ -20,12 +20,6 @@ snapshots as (
         try_cast(parsed.fetched_at as timestamp) as fetched_at,
         parsed.ticket.ticket_id,
         parsed.ticket.state as state_th,
-        case parsed.ticket.state
-            when 'รอรับเรื่อง' then 'waiting'
-            when 'ส่งต่อ(ใหม่)' then 'forwarded'
-            when 'กำลังดำเนินการ' then 'in_progress'
-            when 'เสร็จสิ้น' then 'finished'
-        end as state_code,
         try_cast(parsed.ticket.`timestamp` as timestamp) as reported_at,
         try_cast(parsed.ticket.last_activity as timestamp) as last_activity_at,
         -- `type` lists categories as 'ถนน,แสงสว่าง' and problem_type_abdul repeats them as an array
