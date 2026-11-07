@@ -43,13 +43,16 @@ jobs:
           dbt run-operation create_landing
           dbt run-operation load_landing
 
+      # Databricks now and then fails a query with a transient error (a metastore
+      # deadlock on 7 November 2026), so whatever failed runs once more with
+      # `dbt retry`. A test that really fails fails again.
       - name: Build and test
-        run: dbt build --exclude-resource-type unit_test
+        run: dbt build --exclude-resource-type unit_test || dbt retry
 
       # Unit tests read the column types of the tables they cover, so they run once
       # those tables exist, and before anything is published.
       - name: Unit tests
-        run: dbt test --select test_type:unit
+        run: dbt test --select test_type:unit || dbt retry
 
       - name: Check the hourly ingest is keeping up
         run: dbt source freshness
