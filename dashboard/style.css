@@ -389,6 +389,10 @@ button.more {
   font-variant-numeric: tabular-nums;
 }
 
+.narrow .bars {
+  max-width: 720px;
+}
+
 .notes {
   margin: 8px 0 0;
   padding-left: 18px;

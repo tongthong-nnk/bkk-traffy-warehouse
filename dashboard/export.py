@@ -24,6 +24,7 @@ TABLES = (
     "rpt_monthly",
     "rpt_backlog_daily",
     "rpt_district",
+    "rpt_state",
     "rpt_problem_type",
     "rpt_data_quality",
 )

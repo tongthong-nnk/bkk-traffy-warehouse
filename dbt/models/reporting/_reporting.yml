@@ -45,6 +45,14 @@ models:
       - name: district_code
         data_tests: [unique, not_null]
 
+  - name: rpt_state
+    description: Tickets by the state they are in now.
+    columns:
+      - name: state_code
+        data_tests: [unique, not_null]
+      - name: open_30_days_or_more
+        description: Open tickets reported at least 30 days ago.
+
   - name: rpt_problem_type
     description: Tickets by category.
     columns:
@@ -82,6 +90,7 @@ exposures:
       - ref('rpt_monthly')
       - ref('rpt_backlog_daily')
       - ref('rpt_district')
+      - ref('rpt_state')
       - ref('rpt_problem_type')
       - ref('rpt_data_quality')
     owner:

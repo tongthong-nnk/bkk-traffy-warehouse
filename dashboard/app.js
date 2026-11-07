@@ -454,6 +454,18 @@ function renderDistricts(rows) {
   document.getElementById("districts").append(html("div", { className: "table-wrap" }, table), more);
 }
 
+function renderStates(rows) {
+  const open = rows.filter((r) => r.is_open).sort((a, b) => b.tickets - a.tickets);
+  const closed = rows.filter((r) => !r.is_open).sort((a, b) => b.tickets - a.tickets);
+  const closedText = closed.map((r) => `${count(r.tickets)} ${r.name_en.toLowerCase()}`).join(" and ");
+  document.getElementById("states-note").textContent =
+    `${count(sum(open, "tickets"))} tickets are open now. The other ${count(sum(closed, "tickets"))} are closed: ${closedText}.`;
+  barList(
+    document.getElementById("states"),
+    open.map((r) => ({ label: r.name_en, note: r.name_th, value: r.tickets })),
+  );
+}
+
 function renderCategories(rows) {
   const container = document.getElementById("categories");
   const sorted = [...rows].sort((a, b) => b.tickets - a.tickets);
@@ -503,8 +515,8 @@ async function load(name) {
 }
 
 async function main() {
-  const [summaryRows, allMonths, allDays, districts, categories, quality] = await Promise.all(
-    ["rpt_summary", "rpt_monthly", "rpt_backlog_daily", "rpt_district", "rpt_problem_type", "rpt_data_quality"].map(load),
+  const [summaryRows, allMonths, allDays, districts, states, categories, quality] = await Promise.all(
+    ["rpt_summary", "rpt_monthly", "rpt_backlog_daily", "rpt_district", "rpt_state", "rpt_problem_type", "rpt_data_quality"].map(load),
   );
   const summary = summaryRows[0];
   // Months before this one are missing the tickets the API no longer returns.
@@ -571,6 +583,7 @@ async function main() {
     { label: "Name a category", value: (r) => percent(r.category) },
   ], newestFirst);
 
+  renderStates(states);
   renderDistricts(districts);
   renderCategories(categories);
   renderDataQuality(quality);
