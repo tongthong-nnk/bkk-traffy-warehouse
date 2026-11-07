@@ -94,6 +94,12 @@ def test_keeps_paging_past_the_first_total():
     assert len(pages) == 3
 
 
+def test_an_empty_window_is_one_empty_page():
+    session = FakeSession(FakeResponse(payload={"status": True, "total": None, "results": []}))
+    pages = list(iter_pages(session, date(2022, 1, 1), date(2022, 1, 7), sleep=no_sleep))
+    assert [(p.total, len(p.tickets)) for p in pages] == [(0, 0)]
+
+
 def test_retries_errors_and_slow_downs():
     waits = []
     session = FakeSession(
@@ -120,7 +126,11 @@ def test_rejects_a_body_that_is_not_a_page():
 
 
 def test_pull_writes_pages_then_a_manifest(tmp_path):
-    session = FakeSession(full_page(0), FakeResponse(payload=body([ticket(1000)])))
+    session = FakeSession(
+        full_page(0),
+        FakeResponse(payload=body([ticket(1000)])),
+        FakeResponse(payload=body([ticket(2000)], total=1)),
+    )
     clock = iter(datetime(2026, 11, 6, 3, 17, s, tzinfo=UTC) for s in range(10))
 
     manifest = pull(
@@ -132,18 +142,30 @@ def test_pull_writes_pages_then_a_manifest(tmp_path):
         sleep=no_sleep,
     )
 
+    # one day at a time: two pages of the 5th, then one of the 6th
+    assert [(c["last_activity_start"], c["offset"]) for c in session.calls] == [
+        ("2026-11-05", 0),
+        ("2026-11-05", PAGE_SIZE),
+        ("2026-11-06", 0),
+    ]
+    assert all(c["last_activity_start"] == c["last_activity_end"] for c in session.calls)
+
     assert manifest["run_id"] == "20261106T031700Z"
-    assert (manifest["pages"], manifest["tickets"], manifest["api_total"]) == (2, 1001, 1003)
+    assert (manifest["pages"], manifest["tickets"], manifest["api_total"]) == (3, 1002, 1004)
     assert (manifest["window_start"], manifest["window_end"]) == ("2026-11-05", "2026-11-06")
 
     run_dir = tmp_path / "tickets" / "run=20261106T031700Z"
-    assert sorted(p.name for p in run_dir.iterdir()) == ["page-0000.jsonl.gz", "page-0001.jsonl.gz"]
-    with gzip.open(run_dir / "page-0001.jsonl.gz", "rt", encoding="utf-8") as f:
+    assert sorted(p.name for p in run_dir.iterdir()) == [
+        "page-0000.jsonl.gz",
+        "page-0001.jsonl.gz",
+        "page-0002.jsonl.gz",
+    ]
+    with gzip.open(run_dir / "page-0002.jsonl.gz", "rt", encoding="utf-8") as f:
         rows = [json.loads(line) for line in f]
     assert len(rows) == 1
     assert rows[0]["run_id"] == "20261106T031700Z"
-    assert rows[0]["page"] == 1
-    assert rows[0]["ticket"]["ticket_id"] == "2026-T01000"
+    assert rows[0]["page"] == 2
+    assert rows[0]["ticket"]["ticket_id"] == "2026-T02000"
     assert rows[0]["ticket"]["address"] == "แขวงดอนเมือง เขตดอนเมือง กรุงเทพมหานคร"
 
     saved = json.loads((tmp_path / "runs" / "20261106T031700Z.json").read_text(encoding="utf-8"))

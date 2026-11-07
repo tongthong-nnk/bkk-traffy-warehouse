@@ -7,6 +7,12 @@ files laid out the same way as the landing volume:
 
     tickets/run=<run_id>/page-0000.jsonl.gz   one line per ticket
     runs/<run_id>.json                        what the run fetched, written last
+
+The API takes longer to answer the more tickets a window holds, whatever the
+page size: a page from one month of 2024 (22,478 tickets) took 19 s on average,
+a page from two days of November 2026 (about 7,000) took 6.5 s. With more pages
+as well as slower ones, paging a window costs about the square of its size, so
+a pull asks for one day at a time.
 """
 
 from __future__ import annotations
@@ -25,7 +31,8 @@ import requests
 
 API_URL = "https://publicapi.traffy.in.th/share/teamchadchart/search"
 PAGE_SIZE = 1000
-MAX_PAGES = 2000  # stops a runaway loop; all of history was about 1,540 pages in Nov 2026
+MAX_PAGES = 200  # stops a runaway loop; a busy day is about 5 pages
+PAUSE = 1.0  # seconds between requests
 BANGKOK = ZoneInfo("Asia/Bangkok")
 
 # Reporters' own words, officers' notes and photos. Nothing downstream uses
@@ -89,7 +96,8 @@ def _parse(body: object, number: int) -> Page:
     tickets = body.get("results")
     if not isinstance(tickets, list):
         raise ApiError("results is missing or not a list")
-    return Page(number=number, total=int(body.get("total", 0)), tickets=tickets)
+    # a window with no tickets reports a total of null
+    return Page(number=number, total=int(body.get("total") or 0), tickets=tickets)
 
 
 def iter_pages(
@@ -97,7 +105,6 @@ def iter_pages(
     start: date,
     end: date,
     *,
-    pause: float = 1.0,
     sleep: Callable[[float], None] = time.sleep,
 ) -> Iterator[Page]:
     """Yield pages until one comes back short.
@@ -113,7 +120,7 @@ def iter_pages(
         yield page
         if len(page.tickets) < PAGE_SIZE:
             return
-        sleep(pause)
+        sleep(PAUSE)
     raise ApiError(f"more than {MAX_PAGES} pages for {start}..{end}")
 
 
@@ -126,7 +133,7 @@ def pull(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict:
-    """Write one window of tickets under out_dir and return the run manifest."""
+    """Write one window of tickets under out_dir, a day at a time, and return the run manifest."""
     if start > end:
         raise ValueError(f"start {start} is after end {end}")
     started_at = now()
@@ -134,25 +141,29 @@ def pull(
     pages_dir = out_dir / "tickets" / f"run={run_id}"
     pages_dir.mkdir(parents=True, exist_ok=False)
 
-    pages = tickets = 0
-    api_total = None
-    for page in iter_pages(session, start, end, sleep=sleep):
-        if api_total is None:
-            api_total = page.total
-        fetched_at = now().isoformat()
-        path = pages_dir / f"page-{page.number:04d}.jsonl.gz"
-        with gzip.open(path, "wt", encoding="utf-8") as f:
-            for ticket in page.tickets:
-                row = {
-                    "run_id": run_id,
-                    "page": page.number,
-                    "fetched_at": fetched_at,
-                    "ticket": {k: v for k, v in ticket.items() if k not in DROPPED_FIELDS},
-                }
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
-        pages += 1
-        tickets += len(page.tickets)
-        log.info("page %d: %d tickets", page.number, len(page.tickets))
+    pages = tickets = api_total = 0
+    day = start
+    while day <= end:
+        if day > start:
+            sleep(PAUSE)
+        pages_before, tickets_before = pages, tickets
+        for page in iter_pages(session, day, day, sleep=sleep):
+            if page.number == 0:
+                api_total += page.total
+            fetched_at = now().isoformat()
+            with gzip.open(pages_dir / f"page-{pages:04d}.jsonl.gz", "wt", encoding="utf-8") as f:
+                for ticket in page.tickets:
+                    row = {
+                        "run_id": run_id,
+                        "page": pages,
+                        "fetched_at": fetched_at,
+                        "ticket": {k: v for k, v in ticket.items() if k not in DROPPED_FIELDS},
+                    }
+                    f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            pages += 1
+            tickets += len(page.tickets)
+        log.info("%s: %d tickets, %d pages", day, tickets - tickets_before, pages - pages_before)
+        day += timedelta(days=1)
 
     manifest = {
         "run_id": run_id,

@@ -1,0 +1,24 @@
+name: backfill
+
+# Loads the history the API still holds, one ingest run per year of last
+# activity, oldest first: the API has nothing before June 2022. Run it once
+# after connecting the workspace; the hourly ingest keeps up from there.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  year:
+    strategy:
+      # one year at a time, and a failed year does not stop the rest
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        year: [2022, 2023, 2024, 2025, 2026]
+    uses: ./.github/workflows/ingest.yml
+    with:
+      start: ${{ matrix.year }}-01-01
+      end: ${{ matrix.year }}-12-31
+    secrets: inherit

@@ -14,6 +14,11 @@ on:
       end:
         description: Last Bangkok date, YYYY-MM-DD (empty for today)
         required: false
+  # the backfill workflow calls this once per year
+  workflow_call:
+    inputs:
+      start: {type: string, required: false}
+      end: {type: string, required: false}
 
 concurrency:
   # Hourly runs queue behind each other; a backfill runs beside them.
@@ -58,6 +63,6 @@ jobs:
         if: failure() || vars.DATABRICKS_HOST == ''
         uses: actions/upload-artifact@v4
         with:
-          name: traffy-${{ github.run_id }}
+          name: traffy-${{ inputs.start || 'latest' }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: out
           retention-days: 90

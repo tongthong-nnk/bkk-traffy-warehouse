@@ -11,8 +11,10 @@ Status: the hourly ingest and the dbt models are written. The dashboard comes ne
 ## Ingest
 
 `python -m ingest pull` reads every report whose last activity falls on yesterday or today in
-Bangkok time, 1,000 per request, and writes one gzipped JSON Lines file per page and a manifest for
-the run. Reading two days on every run means a late or skipped hourly run loses nothing; the
+Bangkok time, one day and 1,000 tickets per request, and writes one gzipped JSON Lines file per page
+and a manifest for the run. The API slows down as a window grows (a page from one month of 2024 took
+19 s, a page from two days of November 2026 took 6.5 s), so even a backfill asks for one day at a
+time. Reading two days on every run means a late or skipped hourly run loses nothing; the
 repeats are removed later, in `int_ticket_versions`. The reporter's text, officers' notes and photo
 links are dropped before anything is written, because nothing downstream needs them.
 
@@ -20,8 +22,8 @@ links are dropped before anything is written, because nothing downstream needs t
 `workspace.traffy.landing` through the Databricks Files API, which needs no cluster or SQL
 warehouse. Manifests go last, so a manifest in the volume means every page of its run is there too.
 
-The `ingest` workflow runs both every hour at minute 17. A manual run with `start` and `end`
-dates loads history, one year at a time.
+The `ingest` workflow runs both every hour at minute 17. The `backfill` workflow loads the history
+the API still holds, from June 2022, by running the same ingest once per year.
 
 ## Models
 
