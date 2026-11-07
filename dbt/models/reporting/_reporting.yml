@@ -1,0 +1,80 @@
+version: 2
+
+models:
+  - name: rpt_summary
+    description: One row of headline numbers for the dashboard.
+    columns:
+      - name: collection_started_at
+        description: The first pull. History before it comes from the backfill and has no state changes.
+      - name: tickets_observed_from_start
+        description: Tickets first seen as reported, so every change of state is known.
+
+  - name: rpt_monthly
+    description: Tickets by the Bangkok month they were reported in.
+    columns:
+      - name: month_start
+        data_tests: [unique, not_null]
+      - name: finished
+        description: Tickets from the month that are finished now.
+      - name: reported_7_days_ago_or_more
+        description: Tickets that had at least 7 days to be finished by the time of the build.
+      - name: finished_within_7_days
+        description: Of those, the ones finished within 7 days of the report.
+      - name: median_days_to_finish
+        description: Over finished tickets. Tickets finished before collection began count to their latest activity.
+      - name: with_category
+        description: Tickets the reporter gave at least one category.
+
+  - name: rpt_backlog_daily
+    description: Open tickets at the end of each Bangkok day, all districts and states together.
+    columns:
+      - name: snapshot_date
+        data_tests: [unique, not_null]
+
+  - name: rpt_district
+    description: Every district, with its tickets so far and its backlog now.
+    columns:
+      - name: district_code
+        data_tests: [unique, not_null]
+
+  - name: rpt_problem_type
+    description: Tickets by category.
+    columns:
+      - name: problem_type
+        data_tests: [unique, not_null]
+      - name: tickets
+        description: Tickets, with a ticket in two categories counted as half in each.
+
+  - name: rpt_data_quality
+    description: Counts of the known problems in the source data, refreshed on every build.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [check_name, detail]
+    columns:
+      - name: check_name
+        data_tests: [not_null]
+      - name: affected
+        description: Rows with the problem.
+      - name: out_of
+        description: Rows checked.
+      - name: unit
+        description: What a row is, tickets or runs.
+      - name: detail
+        description: The unlisted state, for `state_not_in_seed`.
+
+exposures:
+  - name: dashboard
+    label: Traffy Fondue dashboard
+    type: dashboard
+    url: https://tongthong-nnk.github.io/bkk-traffy-warehouse/
+    description: Static page built from the reporting tables after every build.
+    depends_on:
+      - ref('rpt_summary')
+      - ref('rpt_monthly')
+      - ref('rpt_backlog_daily')
+      - ref('rpt_district')
+      - ref('rpt_problem_type')
+      - ref('rpt_data_quality')
+    owner:
+      name: tongthong-nnk

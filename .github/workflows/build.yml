@@ -6,7 +6,7 @@ on:
     - cron: "45 19 * * *"
   push:
     branches: [main]
-    paths: ["dbt/**", ".github/workflows/build.yml"]
+    paths: ["dbt/**", "dashboard/**", ".github/workflows/build.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -53,3 +53,12 @@ jobs:
 
       - name: Check the hourly ingest is keeping up
         run: dbt source freshness
+
+      - name: Export the dashboard data
+        run: python dashboard/export.py site/data
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-data
+          path: site/data
+          retention-days: 30

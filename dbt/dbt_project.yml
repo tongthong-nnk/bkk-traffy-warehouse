@@ -27,6 +27,9 @@ models:
     marts:
       +schema: marts
       +materialized: table
+    reporting:
+      +schema: reporting
+      +materialized: table
 
 seeds:
   traffy:
