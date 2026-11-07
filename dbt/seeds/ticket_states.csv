@@ -1,9 +1,15 @@
 state_code,name_th,name_en,is_open,sort_order
 unknown,ไม่ทราบ,Not seen yet,true,0
 waiting,รอรับเรื่อง,Waiting,true,1
-forwarded,ส่งต่อ(ใหม่),Forwarded,true,2
-in_progress,กำลังดำเนินการ,In progress,true,3
-following_up,ติดตามเรื่อง,Following up,true,4
-awaiting_budget,ของบประมาณ,Awaiting budget,true,5
-finished,เสร็จสิ้น,Finished,false,6
-other,อื่น ๆ,Not in this list yet,true,7
+accepted,รับเรื่อง,Accepted,true,2
+forwarded,ส่งต่อ(ใหม่),Forwarded,true,3
+in_progress,กำลังดำเนินการ,In progress,true,4
+following_up,ติดตามเรื่อง,Following up,true,5
+studying,ศึกษาปัญหา,Studying the problem,true,6
+awaiting_budget,ของบประมาณ,Awaiting budget,true,7
+procurement,จัดซื้อจัดจ้าง,In procurement,true,8
+policy,จัดทำนโยบาย,Drafting a policy,true,9
+legal_process,ขั้นตอนทางกฎหมาย,In legal process,true,10
+finished,เสร็จสิ้น,Finished,false,11
+not_relevant,ไม่เกี่ยวข้อง,Not relevant,false,12
+other,อื่น ๆ,Not in this list yet,true,13

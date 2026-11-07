@@ -17,7 +17,9 @@ models:
       - name: month_start
         data_tests: [unique, not_null]
       - name: finished
-        description: Tickets from the month that are finished now.
+        description: >
+          Tickets from the month that are finished (เสร็จสิ้น) now. A ticket closed as
+          not relevant is closed but not finished.
       - name: reported_7_days_ago_or_more
         description: Tickets that had at least 7 days to be finished by the time of the build.
       - name: finished_within_7_days
