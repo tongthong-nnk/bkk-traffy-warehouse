@@ -36,7 +36,17 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - run: pip install ".[dbt]"
+      # dbt-core's parser is a 56 MB wheel that pip fetches from a GitHub release,
+      # and that download failed with HTTP 504 in two builds in a row on
+      # 8 November 2026, so the install gets three tries a minute apart.
+      - name: Install dbt
+        run: |
+          for attempt in 1 2; do
+            pip install ".[dbt]" && exit 0
+            echo "::warning::pip install failed on try $attempt, trying again in a minute"
+            sleep 60
+          done
+          pip install ".[dbt]"
 
       - name: Copy new files from the landing volume
         run: |
