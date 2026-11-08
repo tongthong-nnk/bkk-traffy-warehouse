@@ -2,10 +2,13 @@ name: ingest
 
 on:
   schedule:
-    # Minute 17, away from the top of the hour, when GitHub delays or drops
-    # the most scheduled runs. Each run re-reads yesterday and today, so a
-    # missed hour costs no data.
-    - cron: "17 * * * *"
+    # GitHub starts only some scheduled runs: 4 of the 16 hourly ones on
+    # 8 November 2026, and none for seven and a half hours at one point. So the
+    # schedule asks four times an hour, away from the top of the hour when GitHub
+    # drops the most, and a run pulls only when the last pull started at least
+    # 45 minutes ago. Each pull re-reads yesterday and today, so a missed hour
+    # loses no ticket.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
       start:
@@ -21,7 +24,7 @@ on:
       end: {type: string, required: false}
 
 concurrency:
-  # Hourly runs queue behind each other; a backfill runs beside them.
+  # Scheduled runs queue behind each other; a backfill runs beside them.
   group: ingest-${{ github.event_name }}
   cancel-in-progress: false
 
@@ -43,14 +46,28 @@ jobs:
 
       - run: pip install .
 
+      # A run started by hand or by the backfill always pulls. When the check
+      # itself fails, the run pulls anyway.
+      - name: Check when the last pull ran
+        id: due
+        if: github.event_name == 'schedule' && vars.DATABRICKS_HOST != ''
+        continue-on-error: true
+        env:
+          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          due=$(python -m ingest due --minutes 45)
+          echo "due=$due" >> "$GITHUB_OUTPUT"
+
       - name: Pull tickets
+        if: steps.due.outputs.due != 'false'
         env:
           START: ${{ inputs.start }}
           END: ${{ inputs.end }}
         run: python -m ingest pull --out out ${START:+--start "$START"} ${END:+--end "$END"}
 
       - name: Upload to the landing volume
-        if: vars.DATABRICKS_HOST != ''
+        if: steps.due.outputs.due != 'false' && vars.DATABRICKS_HOST != ''
         env:
           DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
@@ -60,7 +77,7 @@ jobs:
       # is connected, or when the upload fails) so no history is lost. They can be
       # uploaded later with `python -m ingest upload`.
       - name: Keep the files as an artifact
-        if: failure() || vars.DATABRICKS_HOST == ''
+        if: steps.due.outputs.due != 'false' && (failure() || vars.DATABRICKS_HOST == '')
         uses: actions/upload-artifact@v6
         with:
           name: traffy-${{ inputs.start || 'latest' }}-${{ github.run_id }}-${{ github.run_attempt }}

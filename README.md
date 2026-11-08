@@ -39,7 +39,7 @@ flowchart LR
 Bangkok time, one day and 1,000 tickets per request, and writes one gzipped JSON Lines file per page
 and a manifest for the run. The API slows down as a window grows (a page from one month of 2024 took
 19 s, a page from two days of November 2026 took 6.5 s), so even a backfill asks for one day at a
-time. Reading two days on every run means a late or skipped hourly run loses nothing; the
+time. Reading two days on every run means a late or skipped run loses no ticket; the
 repeats are removed later, in `int_ticket_versions`. The reporter's text, officers' notes and photo
 links are dropped before anything is written, because nothing downstream needs them.
 
@@ -47,8 +47,11 @@ links are dropped before anything is written, because nothing downstream needs t
 `workspace.traffy.landing` through the Databricks Files API, which needs no cluster or SQL
 warehouse. Manifests go last, so a manifest in the volume means every page of its run is there too.
 
-The `ingest` workflow runs both every hour at minute 17. The `backfill` workflow loads the history
-the API still holds, back to May 2022, by running the same ingest once per year.
+The `ingest` workflow runs both about once an hour. GitHub starts only some scheduled runs: on
+8 November 2026 it started 4 of the 16 hourly ones, and none for seven and a half hours at one
+point. So the workflow is scheduled four times an hour, and `python -m ingest due` lets a run pull
+only when the newest run in the volume started at least 45 minutes ago. The `backfill` workflow
+loads the history the API still holds, back to May 2022, by running the same ingest once per year.
 
 ## Models
 
@@ -82,8 +85,8 @@ build step) and the dbt docs.
 Every build runs the dbt data tests (keys, and relationships to the seeds and dimensions), then
 five unit tests on the models with the most logic: repeat removal, state periods, ticket
 milestones and the daily backlog. `dbt source freshness` fails the build when no pull has finished
-for 12 hours. On every push, CI runs ruff, the ingest tests (paging, retries, upload order) and
-`dbt parse`.
+for 12 hours. On every push, CI runs ruff, the ingest tests (paging, retries, upload order and the
+check for a recent pull) and `dbt parse`.
 
 ## Problems in the data
 
@@ -129,7 +132,7 @@ for a public repository.
    `DATABRICKS_HTTP_PATH`.
 3. Run the `build` workflow. Its first run creates the schema, the landing volume and the raw
    tables, then stops at the freshness check because nothing has been pulled yet. Run `backfill`
-   next; from then on `ingest` runs every hour and `build` every night at 02:45 Bangkok time.
+   next; from then on `ingest` runs about every hour and `build` every night at 02:45 Bangkok time.
 4. Under Settings > Pages, deploy from the `gh-pages` branch.
 
 To work on the ingest locally:

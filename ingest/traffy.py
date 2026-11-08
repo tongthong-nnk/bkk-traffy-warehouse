@@ -33,6 +33,7 @@ API_URL = "https://publicapi.traffy.in.th/share/teamchadchart/search"
 PAGE_SIZE = 1000
 MAX_PAGES = 200  # stops a runaway loop; a busy day is about 5 pages
 PAUSE = 1.0  # seconds between requests
+RUN_ID_FORMAT = "%Y%m%dT%H%M%SZ"  # a run is named after the time it started, in UTC
 BANGKOK = ZoneInfo("Asia/Bangkok")
 
 # Reporters' own words, officers' notes and photos. Nothing downstream uses
@@ -137,7 +138,7 @@ def pull(
     if start > end:
         raise ValueError(f"start {start} is after end {end}")
     started_at = now()
-    run_id = started_at.strftime("%Y%m%dT%H%M%SZ")
+    run_id = started_at.strftime(RUN_ID_FORMAT)
     pages_dir = out_dir / "tickets" / f"run={run_id}"
     pages_dir.mkdir(parents=True, exist_ok=False)
 

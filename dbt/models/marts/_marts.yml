@@ -105,7 +105,7 @@ models:
   - name: fct_state_change
     description: >
       One row per change of state seen between two pulls (a transaction fact).
-      With hourly pulls, a ticket that changes twice within the hour shows one change.
+      A ticket that changes twice between two pulls shows one change.
     data_tests:
       - unique_combination:
           arguments:

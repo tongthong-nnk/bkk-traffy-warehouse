@@ -4,7 +4,7 @@ models:
   - name: stg_traffy__ticket_snapshots
     description: >
       One row per ticket per pull: the ticket as the API returned it at `fetched_at`.
-      Each hourly pull re-reads two days of activity, so the same ticket appears many
+      Each pull re-reads two days of activity, so the same ticket appears many
       times with nothing changed. `int_ticket_versions` removes the repeats.
     columns:
       - name: run_id

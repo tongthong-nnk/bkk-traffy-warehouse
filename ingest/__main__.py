@@ -1,4 +1,4 @@
-"""Command line entry point: `python -m ingest pull` and `python -m ingest upload`."""
+"""Command line entry point: `python -m ingest pull`, `upload` and `due`."""
 
 from __future__ import annotations
 
@@ -7,16 +7,18 @@ import json
 import logging
 import os
 import sys
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import requests
 
-from ingest.traffy import default_window, pull
-from ingest.upload import upload_dir
+from ingest.traffy import RUN_ID_FORMAT, default_window, pull
+from ingest.upload import latest_run, upload_dir
 
 DEFAULT_VOLUME = "/Volumes/workspace/traffy/landing"
 USER_AGENT = "bkk-traffy-warehouse (+https://github.com/tongthong-nnk/bkk-traffy-warehouse)"
+
+log = logging.getLogger("ingest")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -36,6 +38,12 @@ def main(argv: list[str] | None = None) -> int:
     upload_cmd.add_argument("out", type=Path)
     upload_cmd.add_argument("--volume", default=os.environ.get("TRAFFY_VOLUME", DEFAULT_VOLUME))
 
+    due_cmd = commands.add_parser(
+        "due", help="print true when the newest run in the volume is old enough to pull again"
+    )
+    due_cmd.add_argument("--minutes", type=int, default=45)
+    due_cmd.add_argument("--volume", default=os.environ.get("TRAFFY_VOLUME", DEFAULT_VOLUME))
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -53,6 +61,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if not host.startswith("https://"):
         host = f"https://{host}"
+
+    if args.command == "due":
+        newest = latest_run(args.volume, host, token)
+        if newest is None:
+            log.info("no run in the volume yet")
+            due = True
+        else:
+            started = datetime.strptime(newest, RUN_ID_FORMAT).replace(tzinfo=UTC)
+            minutes = (datetime.now(UTC) - started) / timedelta(minutes=1)
+            log.info("newest run in the volume: %s, %.0f minutes ago", newest, minutes)
+            due = minutes >= args.minutes
+        print("true" if due else "false")
+        return 0
+
     uploaded = upload_dir(args.out, args.volume, host, token)
     print(f"uploaded {uploaded} files to {args.volume}")
     return 0
