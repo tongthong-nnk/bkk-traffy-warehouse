@@ -372,7 +372,7 @@ function renderTiles(summary, monthly, districts) {
   const asOf = document.getElementById("as-of");
   asOf.textContent =
     `Updated ${bangkokFormat.format(builtAt)} Bangkok time. History starts in ${monthFormat.format(start)}, ` +
-    `the first month the API still holds in full; hourly collection began ${dayFormat.format(new Date(summary.collection_started_at))}.`;
+    `the first month the API still holds in full; scheduled collection began ${dayFormat.format(new Date(summary.collection_started_at))}.`;
 }
 
 function sum(rows, key) {

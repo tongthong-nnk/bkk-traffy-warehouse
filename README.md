@@ -2,7 +2,7 @@
 
 People in Bangkok report broken roads, flooding, rubbish and other city problems through Traffy
 Fondue, and the city's public API shows where each report stands now. It keeps no history, so this
-project pulls the reports that changed every hour, keeps every version it sees, and models them
+project pulls the reports that changed every few hours, keeps every version it sees, and models them
 with dbt on Databricks Free Edition to measure how long the city takes to fix things, by district
 and by type of problem.
 
@@ -20,7 +20,7 @@ last activity, so they lean long.
 
 ```mermaid
 flowchart LR
-    api["Traffy Fondue API"] -->|"every hour"| ingest["ingest workflow"]
+    api["Traffy Fondue API"] -->|"every few hours"| ingest["ingest workflow"]
     ingest -->|"Files API"| volume[("Unity Catalog<br/>volume")]
     volume -->|"COPY INTO,<br/>every night"| dbt["dbt on Databricks<br/>staging, intermediate,<br/>marts, reporting"]
     dbt -->|"JSON export"| pages["GitHub Pages<br/>dashboard and docs"]
@@ -31,7 +31,7 @@ flowchart LR
 | `ingest/` | the pull from the API and the upload to Databricks, in Python |
 | `dbt/` | models, seeds, macros and tests |
 | `dashboard/` | the page and the script that exports its data |
-| `.github/workflows/` | `ingest` (hourly), `backfill`, `build` (nightly) and `ci` |
+| `.github/workflows/` | `ingest` (every few hours), `backfill`, `build` (nightly) and `ci` |
 
 ## Ingest
 
@@ -47,11 +47,11 @@ links are dropped before anything is written, because nothing downstream needs t
 `workspace.traffy.landing` through the Databricks Files API, which needs no cluster or SQL
 warehouse. Manifests go last, so a manifest in the volume means every page of its run is there too.
 
-The `ingest` workflow runs both about once an hour. GitHub starts only some scheduled runs: on
-8 November 2026 it started 4 of the 16 hourly ones, and none for seven and a half hours at one
-point. So the workflow is scheduled four times an hour, and `python -m ingest due` lets a run pull
-only when the newest run in the volume started at least 45 minutes ago. The `backfill` workflow
-loads the history the API still holds, back to May 2022, by running the same ingest once per year.
+The `ingest` workflow runs both on an hourly schedule, but GitHub starts a scheduled run for this
+repository only every three to seven hours: 4 of the 16 hourly ones on 8 November 2026, and a
+schedule four times an hour made no difference. A ticket that changes twice between two pulls
+therefore shows only the later state. The `backfill` workflow loads the history the API still
+holds, back to May 2022, by running the same ingest once per year.
 
 ## Models
 
@@ -85,15 +85,15 @@ build step) and the dbt docs.
 Every build runs the dbt data tests (keys, and relationships to the seeds and dimensions), then
 five unit tests on the models with the most logic: repeat removal, state periods, ticket
 milestones and the daily backlog. `dbt source freshness` fails the build when no pull has finished
-for 12 hours. On every push, CI runs ruff, the ingest tests (paging, retries, upload order and the
-check for a recent pull) and `dbt parse`.
+for 12 hours. On every push, CI runs ruff, the ingest tests (paging, retries, upload order) and
+`dbt parse`.
 
 ## Problems in the data
 
 Counts are from the build of 7 November 2026. `rpt_data_quality` counts most of them again on
 every build, and the dashboard lists them.
 
-- The API keeps only each ticket's current state. Everything before hourly collection began on
+- The API keeps only each ticket's current state. Everything before scheduled collection began on
   7 November 2026 comes from the backfill, which saw each ticket once: the time from its report to
   its last activity is kept as period 0, `unknown`, and a ticket that was already finished counts
   as closed at its last activity, which can come after the real close (a rating after the fix
@@ -108,8 +108,8 @@ every build, and the dashboard lists them.
   The category chart shows the drop rather than hiding it.
 - Paging through a window returns fewer tickets than the `total` on its first page. For
   6 November 2026 the first page said 4,734, and the page at offset 4,720 came back empty. Across
-  the backfill and the hourly pulls, 27,299 of 1,570,212 tickets (1.7%) are missing this way. A
-  page past the end, like an empty window, reports `total: null`.
+  the backfill and the two pulls before it, 27,299 of 1,570,212 tickets (1.7%) are missing this
+  way. A page past the end, like an empty window, reports `total: null`.
 - The API takes longer to answer the more tickets a window holds, so the ingest asks for one day
   at a time. The backfill took 2,577 requests and about three hours.
 - The seed started with four states; the other eight turned up once real data came in, among
@@ -132,7 +132,8 @@ for a public repository.
    `DATABRICKS_HTTP_PATH`.
 3. Run the `build` workflow. Its first run creates the schema, the landing volume and the raw
    tables, then stops at the freshness check because nothing has been pulled yet. Run `backfill`
-   next; from then on `ingest` runs about every hour and `build` every night at 02:45 Bangkok time.
+   next; from then on GitHub starts `ingest` on its hourly schedule and `build` every night at
+   02:45 Bangkok time, both often late.
 4. Under Settings > Pages, deploy from the `gh-pages` branch.
 
 To work on the ingest locally:

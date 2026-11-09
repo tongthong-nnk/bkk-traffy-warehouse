@@ -24,7 +24,7 @@
     <section class="card">
       <h2>Open tickets at the end of each day</h2>
       <p class="note">
-        Before hourly collection began, the backlog is rebuilt from each ticket's report time and
+        Before scheduled collection began, the backlog is rebuilt from each ticket's report time and
         its latest activity, so a ticket finished back then counts as open until that activity.
       </p>
       <div class="chart" id="backlog"></div>
@@ -74,7 +74,7 @@
 
     <footer>
       <p>
-        Source: the Traffy Fondue public API for Bangkok, pulled about every hour. Built with dbt on
+        Source: the Traffy Fondue public API for Bangkok, pulled every few hours. Built with dbt on
         Databricks Free Edition: <a href="https://github.com/tongthong-nnk/bkk-traffy-warehouse">code</a>
         and <a href="docs/">model documentation</a>.
       </p>
